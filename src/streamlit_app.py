@@ -1,40 +1,84 @@
-import altair as alt
-import numpy as np
-import pandas as pd
 import streamlit as st
+import tensorflow as tf
+import numpy as np
+from PIL import Image
 
-"""
-# Welcome to Streamlit!
+# ---------------------------------
+# Page Config
+# ---------------------------------
+st.set_page_config(
+    page_title="Mammogram Breast Cancer Classifier",
+    layout="centered"
+)
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:.
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+# ---------------------------------
+# Class Mapping (CBIS-DDSM)
+# ---------------------------------
+class_mapping = {
+    0: "Benign",
+    1: "Malignant"
+}
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+# ---------------------------------
+# Load Model
+# ---------------------------------
+@st.cache_resource
+def load_model():
+    model = tf.keras.models.load_model("cbis_ddsm_model.keras")
+    return model
 
-num_points = st.slider("Number of points in spiral", 1, 10000, 1100)
-num_turns = st.slider("Number of turns in spiral", 1, 300, 31)
+model = load_model()
 
-indices = np.linspace(0, 1, num_points)
-theta = 2 * np.pi * num_turns * indices
-radius = indices
+# ---------------------------------
+# Prediction Function
+# ---------------------------------
+def predict(image, model):
+    img_array = np.array(image)
 
-x = radius * np.cos(theta)
-y = radius * np.sin(theta)
+    # Resize to model input size
+    img_array = tf.image.resize(img_array, (256, 256))
 
-df = pd.DataFrame({
-    "x": x,
-    "y": y,
-    "idx": indices,
-    "rand": np.random.randn(num_points),
-})
+    # Normalize
+    img_array = img_array / 255.0
 
-st.altair_chart(alt.Chart(df, height=700, width=700)
-    .mark_point(filled=True)
-    .encode(
-        x=alt.X("x", axis=None),
-        y=alt.Y("y", axis=None),
-        color=alt.Color("idx", legend=None, scale=alt.Scale()),
-        size=alt.Size("rand", legend=None, scale=alt.Scale(range=[1, 150])),
-    ))
+    # Add batch dimension
+    img_array = tf.expand_dims(img_array, axis=0)
+
+    # Predict
+    predictions = model.predict(img_array)
+    predicted_index = np.argmax(predictions[0])
+    predicted_label = class_mapping[predicted_index]
+
+    return predicted_label, predictions[0]
+
+# ---------------------------------
+# Streamlit UI
+# ---------------------------------
+st.title("Mammogram Breast Cancer Classification")
+st.markdown(
+    """
+    Upload a **mammogram image** and the AI model will classify it as:
+    - **Benign**
+    - **Malignant**
+
+    This model is trained using the **CBIS-DDSM dataset** and DenseNet121.
+    """
+)
+
+uploaded_file = st.file_uploader(
+    "Upload a mammogram image (JPG / PNG)",
+    type=["jpg", "jpeg", "png"]
+)
+
+if uploaded_file is not None:
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Uploaded Mammogram", use_column_width=True)
+
+    with st.spinner("Analyzing mammogram..."):
+        predicted_class, probs = predict(image, model)
+
+    st.success(f"🧠 Prediction: **{predicted_class}**")
+
+    st.subheader("Confidence Scores")
+    for i, label in class_mapping.items():
+        st.write(f"{label}: **{probs[i] * 100:.2f}%**")
