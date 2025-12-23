@@ -21,17 +21,19 @@ class_mapping = {
 }
 
 # ---------------------------------
-# Load Model (Keras 3 SAFE)
+# Load Model (HF + Keras-safe)
 # ---------------------------------
 @st.cache_resource
 def load_model():
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(BASE_DIR, "cbis_ddsm_best_model.keras")
+    model_path = os.path.join(
+        os.path.dirname(__file__),   # → /app/src
+        "cbis_ddsm_final_model.keras"
+    )
 
     model = tf.keras.models.load_model(
         model_path,
-        compile=False,      # 🔥 critical fix
-        safe_mode=False     # 🔥 avoids Keras 3 layer bug
+        compile=False,
+        safe_mode=False
     )
     return model
 
@@ -41,16 +43,15 @@ model = load_model()
 # Prediction Function
 # ---------------------------------
 def predict(image, model):
-    img_array = np.array(image)
-    img_array = tf.image.resize(img_array, (256, 256))
-    img_array = img_array / 255.0
-    img_array = tf.expand_dims(img_array, axis=0)
+    img = np.array(image)
+    img = tf.image.resize(img, (256, 256))
+    img = img / 255.0
+    img = tf.expand_dims(img, axis=0)
 
-    predictions = model.predict(img_array)
-    predicted_index = np.argmax(predictions[0])
-    predicted_label = class_mapping[predicted_index]
+    preds = model.predict(img)
+    idx = np.argmax(preds[0])
 
-    return predicted_label, predictions[0]
+    return class_mapping[idx], preds[0]
 
 # ---------------------------------
 # Streamlit UI
@@ -63,7 +64,7 @@ st.markdown(
     - **Benign**
     - **Malignant**
 
-    Model trained on **CBIS-DDSM (DenseNet-based CNN)**.
+    Model trained on **CBIS-DDSM using DenseNet121**.
     """
 )
 
@@ -72,15 +73,15 @@ uploaded_file = st.file_uploader(
     type=["jpg", "jpeg", "png"]
 )
 
-if uploaded_file:
+if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="Uploaded Mammogram", use_column_width=True)
 
     with st.spinner("Analyzing mammogram..."):
-        predicted_class, probs = predict(image, model)
+        label, probs = predict(image, model)
 
-    st.success(f"🧠 Prediction: **{predicted_class}**")
+    st.success(f"🧠 Prediction: **{label}**")
 
     st.subheader("Confidence Scores")
-    for i, label in class_mapping.items():
-        st.write(f"{label}: **{probs[i] * 100:.2f}%**")
+    for i, name in class_mapping.items():
+        st.write(f"{name}: **{probs[i] * 100:.2f}%**")
