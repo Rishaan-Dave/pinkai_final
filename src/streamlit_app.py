@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # ---------------------------------
-# Class Mapping (CBIS-DDSM)
+# Class Mapping
 # ---------------------------------
 class_mapping = {
     0: "Benign",
@@ -21,13 +21,18 @@ class_mapping = {
 }
 
 # ---------------------------------
-# Load Model (FIXED PATH)
+# Load Model (Keras 3 SAFE)
 # ---------------------------------
 @st.cache_resource
 def load_model():
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # /app/src
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(BASE_DIR, "cbis_ddsm_best_model.keras")
-    model = tf.keras.models.load_model(model_path)
+
+    model = tf.keras.models.load_model(
+        model_path,
+        compile=False,      # 🔥 critical fix
+        safe_mode=False     # 🔥 avoids Keras 3 layer bug
+    )
     return model
 
 model = load_model()
@@ -37,17 +42,10 @@ model = load_model()
 # ---------------------------------
 def predict(image, model):
     img_array = np.array(image)
-
-    # Resize to model input size
     img_array = tf.image.resize(img_array, (256, 256))
-
-    # Normalize
     img_array = img_array / 255.0
-
-    # Add batch dimension
     img_array = tf.expand_dims(img_array, axis=0)
 
-    # Predict
     predictions = model.predict(img_array)
     predicted_index = np.argmax(predictions[0])
     predicted_label = class_mapping[predicted_index]
@@ -58,13 +56,14 @@ def predict(image, model):
 # Streamlit UI
 # ---------------------------------
 st.title("Mammogram Breast Cancer Classification")
+
 st.markdown(
     """
     Upload a **mammogram image** and the AI model will classify it as:
     - **Benign**
     - **Malignant**
 
-    This model is trained using the **CBIS-DDSM dataset** and DenseNet121.
+    Model trained on **CBIS-DDSM (DenseNet-based CNN)**.
     """
 )
 
@@ -73,7 +72,7 @@ uploaded_file = st.file_uploader(
     type=["jpg", "jpeg", "png"]
 )
 
-if uploaded_file is not None:
+if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="Uploaded Mammogram", use_column_width=True)
 
