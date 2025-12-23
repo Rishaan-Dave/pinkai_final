@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import tensorflow as tf
 import numpy as np
@@ -20,11 +21,13 @@ class_mapping = {
 }
 
 # ---------------------------------
-# Load Model
+# Load Model (FIXED PATH)
 # ---------------------------------
 @st.cache_resource
 def load_model():
-    model = tf.keras.models.load_model("cbis_ddsm_best_model.keras")
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # /app/src
+    model_path = os.path.join(BASE_DIR, "cbis_ddsm_best_model.keras")
+    model = tf.keras.models.load_model(model_path)
     return model
 
 model = load_model()
