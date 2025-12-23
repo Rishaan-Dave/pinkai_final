@@ -24,7 +24,7 @@ class_mapping = {
 # ---------------------------------
 @st.cache_resource
 def load_model():
-    model = tf.keras.models.load_model("cbis_ddsm_model.keras")
+    model = tf.keras.models.load_model("cbis_ddsm_best_model.keras")
     return model
 
 model = load_model()
