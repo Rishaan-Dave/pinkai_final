@@ -1,12 +1,16 @@
 import os
+import io
+import random
+import string
+
 import streamlit as st
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 
-# ---------------------------------
-# App Bootstrap (UI MUST RENDER FIRST)
-# ---------------------------------
+# =================================================
+# APP BOOTSTRAP (UI MUST RENDER FIRST)
+# =================================================
 st.write("✅ App started")
 
 st.title("PINKAI Mammogram Analyzer")
@@ -24,22 +28,17 @@ uploaded_file = st.file_uploader(
     type=["png", "jpg", "jpeg"]
 )
 
-# ---------------------------------
-# Load Model (Keras .keras — SAFE)
-# ---------------------------------
+# =================================================
+# MODEL LOADER (HF + STREAMLIT SAFE)
+# =================================================
 @st.cache_resource
 def load_model():
-    """
-    Robust model loader that works locally, on Hugging Face,
-    and in Streamlit Cloud without blocking UI.
-    """
-
     cwd = os.getcwd()
 
     try:
         file_dir = os.path.dirname(os.path.abspath(__file__))
     except NameError:
-        file_dir = None  # __file__ not available (HF Spaces)
+        file_dir = None
 
     search_paths = [
         cwd,
@@ -69,9 +68,23 @@ Files in working directory:
 """
     )
 
-# ---------------------------------
-# Prediction Logic
-# ---------------------------------
+# =================================================
+# IMAGE NORMALIZATION (AUTO-CONVERT + SAFE NAME)
+# =================================================
+def random_filename(ext="png", length=12):
+    chars = string.ascii_letters + string.digits
+    return "".join(random.choice(chars) for _ in range(length)) + f".{ext}"
+
+
+def normalize_uploaded_image(uploaded_file):
+    raw_bytes = uploaded_file.read()
+    image = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
+    safe_name = random_filename("png")
+    return image, safe_name
+
+# =================================================
+# PREDICTION LOGIC
+# =================================================
 CLASS_MAPPING = {0: "Benign", 1: "Malignant"}
 
 def predict(image, model):
@@ -80,17 +93,27 @@ def predict(image, model):
     img = img / 255.0
     img = tf.expand_dims(img, axis=0)
 
-    preds = model.predict(img)
+    preds = model.predict(img, verbose=0)
     idx = int(np.argmax(preds[0]))
 
     return CLASS_MAPPING[idx], preds[0]
 
-# ---------------------------------
-# Inference Trigger (LAZY LOAD)
-# ---------------------------------
+# =================================================
+# INFERENCE (LAZY + SAFE)
+# =================================================
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="Uploaded Mammogram", use_column_width=True)
+
+    try:
+        image, safe_name = normalize_uploaded_image(uploaded_file)
+    except Exception:
+        st.error("❌ The uploaded file could not be processed as an image.")
+        st.stop()
+
+    st.image(
+        image,
+        caption=f"Uploaded Mammogram ({safe_name})",
+        use_column_width=True
+    )
 
     with st.spinner("Loading AI model..."):
         model = load_model()
