@@ -11,7 +11,7 @@ from PIL import Image
 # =================================================
 # APP BOOTSTRAP (UI MUST RENDER FIRST)
 # =================================================
-st.write("✅ App started")
+st.write("app is on mumma have patience")
 
 st.title("PINKAI Mammogram Analyzer")
 
@@ -20,7 +20,6 @@ Upload a mammogram image to receive:
 - AI-based malignancy classification
 - Confidence scores
 
-⚠️ This tool is for research and decision support only.
 """)
 
 uploaded_file = st.file_uploader(
