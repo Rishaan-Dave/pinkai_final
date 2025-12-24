@@ -21,12 +21,12 @@ class_mapping = {
 }
 
 # ---------------------------------
-# Load Model (LOOK IN src/)
+# Load Model (HDF5 — WORKS)
 # ---------------------------------
 @st.cache_resource
 def load_model():
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # ← this IS src/
-    model_path = os.path.join(BASE_DIR, "cbis_ddsm_final_model.keras")
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # this IS src/
+    model_path = os.path.join(BASE_DIR, "cbis_ddsm_final_model.h5")  # ✅ FIX
 
     if not os.path.exists(model_path):
         raise FileNotFoundError(
