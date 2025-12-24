@@ -21,14 +21,17 @@ class_mapping = {
 }
 
 # ---------------------------------
-# Load Model (CORRECT for compatible model)
+# Load Model (NO app/src nonsense)
 # ---------------------------------
 @st.cache_resource
 def load_model():
-    model_path = os.path.join(
-        os.path.dirname(__file__),
-        "cbis_ddsm_final_model.keras"
-    )
+    model_path = "cbis_ddsm_final_model.keras"
+
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(
+            f"Model file not found: {model_path}\n"
+            f"Current directory contents: {os.listdir('.')}"
+        )
 
     return tf.keras.models.load_model(
         model_path,
