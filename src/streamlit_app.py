@@ -1,5 +1,6 @@
 import os
 import io
+import base64
 import random
 import string
 
@@ -9,22 +10,40 @@ import numpy as np
 from PIL import Image
 
 # =================================================
+# PAGE CONFIG
+# =================================================
+st.set_page_config(
+    page_title="PINKAI Mammogram Analyzer",
+    layout="centered"
+)
+
+# =================================================
 # APP BOOTSTRAP (UI MUST RENDER FIRST)
 # =================================================
-st.write("app is on mumma have patience")
+st.write("🟢 App online — please be patient")
 
 st.title("PINKAI Mammogram Analyzer")
 
 st.markdown("""
-Upload a mammogram image to receive:
-- AI-based malignancy classification
-- Confidence scores
+Upload or paste a mammogram image to receive:
+- **AI-based malignancy classification**
+- **Confidence scores**
 
+⚠️ Research & decision support only — not a clinical diagnosis.
 """)
 
+# =================================================
+# INPUT METHODS
+# =================================================
 uploaded_file = st.file_uploader(
     "Upload a mammogram image (PNG / JPG)",
     type=["png", "jpg", "jpeg"]
+)
+
+st.markdown("**OR (if upload fails): paste image as Base64**")
+base64_input = st.text_area(
+    "Paste base64 image string here (advanced / fallback)",
+    height=120
 )
 
 # =================================================
@@ -36,7 +55,7 @@ def load_model():
 
     try:
         file_dir = os.path.dirname(os.path.abspath(__file__))
-    except NameError:
+    except Exception:
         file_dir = None
 
     search_paths = [
@@ -55,31 +74,27 @@ def load_model():
         if os.path.exists(candidate):
             return tf.keras.models.load_model(candidate, compile=False)
 
-    raise FileNotFoundError(
-        f"""
-❌ Could not find {model_name}
-
-Searched paths:
-{chr(10).join(search_paths)}
-
-Files in working directory:
-{os.listdir(cwd)}
-"""
-    )
+    st.error("❌ Model file not found.")
+    st.stop()
 
 # =================================================
-# IMAGE NORMALIZATION (AUTO-CONVERT + SAFE NAME)
+# IMAGE HANDLING
 # =================================================
 def random_filename(ext="png", length=12):
     chars = string.ascii_letters + string.digits
     return "".join(random.choice(chars) for _ in range(length)) + f".{ext}"
 
+def load_image_from_upload(uploaded_file):
+    image = Image.open(uploaded_file).convert("RGB")
+    return image, random_filename("png")
 
-def normalize_uploaded_image(uploaded_file):
-    raw_bytes = uploaded_file.read()
-    image = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
-    safe_name = random_filename("png")
-    return image, safe_name
+def load_image_from_base64(b64_string):
+    try:
+        decoded = base64.b64decode(b64_string)
+        image = Image.open(io.BytesIO(decoded)).convert("RGB")
+        return image, random_filename("png")
+    except Exception:
+        return None, None
 
 # =================================================
 # PREDICTION LOGIC
@@ -98,19 +113,24 @@ def predict(image, model):
     return CLASS_MAPPING[idx], preds[0]
 
 # =================================================
-# INFERENCE (LAZY + SAFE)
+# INFERENCE PIPELINE
 # =================================================
-if uploaded_file is not None:
+image = None
+safe_name = None
 
-    try:
-        image, safe_name = normalize_uploaded_image(uploaded_file)
-    except Exception:
-        st.error("❌ The uploaded file could not be processed as an image.")
+if uploaded_file is not None:
+    image, safe_name = load_image_from_upload(uploaded_file)
+
+elif base64_input.strip():
+    image, safe_name = load_image_from_base64(base64_input.strip())
+    if image is None:
+        st.error("❌ Invalid base64 image.")
         st.stop()
 
+if image is not None:
     st.image(
         image,
-        caption=f"Uploaded Mammogram ({safe_name})",
+        caption=f"Processed Image ({safe_name})",
         use_column_width=True
     )
 
