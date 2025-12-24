@@ -1,47 +1,54 @@
 import os
 import streamlit as st
 import tensorflow as tf
-import numpy as np
-from PIL import Image
 
 # ---------------------------------
 # Load Model (Keras .keras — SAFE)
 # ---------------------------------
+st.write("✅ App started")
+
 @st.cache_resource
 def load_model():
     """
-    Tries multiple reasonable locations so deployment
-    doesn't break if folder structure changes.
+    Robust model loader that works locally, on Hugging Face,
+    and in Streamlit Cloud without blocking UI.
     """
 
-    # Possible locations to search
+    # Resolve base directories safely
+    cwd = os.getcwd()
+    try:
+        file_dir = os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        file_dir = None  # __file__ not available (HF Spaces)
+
     search_paths = [
-        os.getcwd(),                              # project root
-        os.path.dirname(os.path.abspath(__file__)),  # src/ or app/
-        os.path.join(os.getcwd(), "src"),
-        os.path.join(os.getcwd(), "app"),
+        cwd,
+        os.path.join(cwd, "src"),
+        os.path.join(cwd, "app"),
     ]
+
+    if file_dir:
+        search_paths.insert(1, file_dir)
 
     model_name = "cbis_ddsm_streamlit_safe.keras"
 
     for base in search_paths:
         candidate = os.path.join(base, model_name)
         if os.path.exists(candidate):
-            st.info(f"✅ Loaded model from: {candidate}")
             return tf.keras.models.load_model(
                 candidate,
                 compile=False
             )
 
-    # If we reach here → model not found anywhere
+    # Hard fail with debug info
     raise FileNotFoundError(
         f"""
 ❌ Could not find {model_name}
 
-Searched locations:
+Searched paths:
 {chr(10).join(search_paths)}
 
-Files in cwd:
-{os.listdir(os.getcwd())}
+Files in working directory:
+{os.listdir(cwd)}
 """
     )
