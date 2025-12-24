@@ -18,56 +18,41 @@ st.set_page_config(
 )
 
 # =================================================
-# APP BOOTSTRAP (UI MUST RENDER FIRST)
+# UI BOOTSTRAP (RENDER FIRST)
 # =================================================
-st.write("🟢 App online — please be patient")
-
 st.title("PINKAI Mammogram Analyzer")
 
 st.markdown("""
-Upload or paste a mammogram image to receive:
+Upload a mammogram image to receive:
 - **AI-based malignancy classification**
 - **Confidence scores**
 
 ⚠️ Research & decision support only — not a clinical diagnosis.
 """)
 
-# =================================================
-# INPUT METHODS
-# =================================================
 uploaded_file = st.file_uploader(
-    "Upload a mammogram image (PNG / JPG)",
+    "Upload mammogram image (PNG / JPG)",
     type=["png", "jpg", "jpeg"]
 )
 
-st.markdown("**OR (if upload fails): paste image as Base64**")
-base64_input = st.text_area(
-    "Paste base64 image string here (advanced / fallback)",
-    height=120
-)
-
 # =================================================
-# MODEL LOADER (HF + STREAMLIT SAFE)
+# MODEL LOADER (ROBUST)
 # =================================================
 @st.cache_resource
 def load_model():
-    cwd = os.getcwd()
+    model_name = "cbis_ddsm_streamlit_safe.keras"
+
+    search_paths = [
+        os.getcwd(),
+        os.path.join(os.getcwd(), "src"),
+        os.path.join(os.getcwd(), "app"),
+    ]
 
     try:
         file_dir = os.path.dirname(os.path.abspath(__file__))
-    except Exception:
-        file_dir = None
-
-    search_paths = [
-        cwd,
-        os.path.join(cwd, "src"),
-        os.path.join(cwd, "app"),
-    ]
-
-    if file_dir:
         search_paths.insert(1, file_dir)
-
-    model_name = "cbis_ddsm_streamlit_safe.keras"
+    except Exception:
+        pass
 
     for base in search_paths:
         candidate = os.path.join(base, model_name)
@@ -78,30 +63,27 @@ def load_model():
     st.stop()
 
 # =================================================
-# IMAGE HANDLING
+# IMAGE → BASE64 → IMAGE (FIREWALL SAFE)
 # =================================================
-def random_filename(ext="png", length=12):
+def image_to_base64(image: Image.Image) -> str:
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+def base64_to_image(b64_string: str) -> Image.Image:
+    decoded = base64.b64decode(b64_string)
+    return Image.open(io.BytesIO(decoded)).convert("RGB")
+
+def random_filename(ext="png", length=10):
     chars = string.ascii_letters + string.digits
     return "".join(random.choice(chars) for _ in range(length)) + f".{ext}"
-
-def load_image_from_upload(uploaded_file):
-    image = Image.open(uploaded_file).convert("RGB")
-    return image, random_filename("png")
-
-def load_image_from_base64(b64_string):
-    try:
-        decoded = base64.b64decode(b64_string)
-        image = Image.open(io.BytesIO(decoded)).convert("RGB")
-        return image, random_filename("png")
-    except Exception:
-        return None, None
 
 # =================================================
 # PREDICTION LOGIC
 # =================================================
 CLASS_MAPPING = {0: "Benign", 1: "Malignant"}
 
-def predict(image, model):
+def predict(image: Image.Image, model):
     img = np.array(image)
     img = tf.image.resize(img, (256, 256))
     img = img / 255.0
@@ -115,22 +97,25 @@ def predict(image, model):
 # =================================================
 # INFERENCE PIPELINE
 # =================================================
-image = None
-safe_name = None
-
 if uploaded_file is not None:
-    image, safe_name = load_image_from_upload(uploaded_file)
 
-elif base64_input.strip():
-    image, safe_name = load_image_from_base64(base64_input.strip())
-    if image is None:
-        st.error("❌ Invalid base64 image.")
+    try:
+        # Load original image
+        original_image = Image.open(uploaded_file).convert("RGB")
+
+        # 🔐 Firewall-safe step
+        encoded = image_to_base64(original_image)
+        processed_image = base64_to_image(encoded)
+
+        safe_name = random_filename()
+
+    except Exception:
+        st.error("❌ Invalid image file.")
         st.stop()
 
-if image is not None:
     st.image(
-        image,
-        caption=f"Processed Image ({safe_name})",
+        processed_image,
+        caption=f"Processed Mammogram ({safe_name})",
         use_column_width=True
     )
 
@@ -138,7 +123,7 @@ if image is not None:
         model = load_model()
 
     with st.spinner("Analyzing mammogram..."):
-        label, probs = predict(image, model)
+        label, probs = predict(processed_image, model)
 
     st.success(f"🧠 Prediction: **{label}**")
 
