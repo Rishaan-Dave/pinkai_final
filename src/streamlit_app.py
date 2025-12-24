@@ -21,21 +21,19 @@ class_mapping = {
 }
 
 # ---------------------------------
-# Load Model (HF + Keras-safe)
+# Load Model (CORRECT for compatible model)
 # ---------------------------------
 @st.cache_resource
 def load_model():
     model_path = os.path.join(
-        os.path.dirname(__file__),   # → /app/src
+        os.path.dirname(__file__),
         "cbis_ddsm_final_model.keras"
     )
 
-    model = tf.keras.models.load_model(
+    return tf.keras.models.load_model(
         model_path,
-        compile=False,
-        safe_mode=False
+        compile=False
     )
-    return model
 
 model = load_model()
 
